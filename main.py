@@ -14,18 +14,24 @@ import argparse
 from models import *
 from utils import progress_bar
 
-
+# 创建解析器
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--resume', '-r', action='store_true',
-                    help='resume from checkpoint')
+
+# 添加参数
+parser.add_argument('--lr', default=0.1, type=float, help='学习率')
+parser.add_argument('--resume', '-r', action='store_true', help='从检查点恢复')
+parser.add_argument('--arch', default='resnet', type=str, help='架构类型')
+parser.add_argument('--depth', default=18, type=int, help='网络深度')
+parser.add_argument('--epochs', default=200, type=int, help='训练轮数')
+
+# 解析参数
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-best_acc = 0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+best_acc = 0  # 最佳测试准确率
+start_epoch = 0  # 开始训练的轮数
 
-# Data
+# 数据
 print('==> Preparing data..')
 transform_train = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
@@ -52,30 +58,31 @@ testloader = torch.utils.data.DataLoader(
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
 
-# Model
+# 模型
 print('==> Building model..')
-# net = VGG('VGG19')
-# net = ResNet18()
-# net = PreActResNet18()
-# net = GoogLeNet()
-# net = DenseNet121()
-# net = ResNeXt29_2x64d()
-# net = MobileNet()
-# net = MobileNetV2()
-# net = DPN92()
-# net = ShuffleNetG2()
-# net = SENet18()
-# net = ShuffleNetV2(1)
-# net = EfficientNetB0()
-# net = RegNetX_200MF()
-net = SimpleDLA()
+# 根据传入的参数选择模型
+if args.arch == 'resnet':
+    if args.depth == 18:
+        net = ResNet18()
+    elif args.depth == 34:
+        net = ResNet34()
+    elif args.depth == 50:
+        net = ResNet50()
+    elif args.depth == 101:
+        net = ResNet101()
+    elif args.depth == 152:
+        net = ResNet152()
+else:
+    # 默认使用简单的模型
+    net = SimpleDLA()
+
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
 if args.resume:
-    # Load checkpoint.
+    # 加载检查点
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
     checkpoint = torch.load('./checkpoint/ckpt.pth')
@@ -86,10 +93,10 @@ if args.resume:
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
 
-# Training
+# 训练
 def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
@@ -133,7 +140,7 @@ def test(epoch):
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-    # Save checkpoint.
+    # 保存检查点
     acc = 100.*correct/total
     if acc > best_acc:
         print('Saving..')
@@ -147,8 +154,8 @@ def test(epoch):
         torch.save(state, './checkpoint/ckpt.pth')
         best_acc = acc
 
-
-for epoch in range(start_epoch, start_epoch+200):
-    train(epoch)
-    test(epoch)
-    scheduler.step()
+if __name__ == '__main__':
+    for epoch in range(start_epoch, start_epoch + args.epochs):
+        train(epoch)
+        test(epoch)
+        scheduler.step()
